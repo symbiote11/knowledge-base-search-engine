@@ -1,25 +1,32 @@
-import os, shutil
+import os
+import shutil
 from fastapi import FastAPI, UploadFile, File
-from app.ingestion import load_and_split_docs
-from app.embeddings import create_faiss_index
-from app.rag import get_rag_chain
+from ingestion import load_and_split_docs
+from embeddings import create_faiss_index
+from rag import get_rag_chain
 
 app = FastAPI()
+
 DATA_DIR = "data/documents"
 INDEX_DIR = "vectorstore/faiss_index"
+
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(INDEX_DIR, exist_ok=True)
 
 @app.post("/upload-doc")
 async def upload_document(file: UploadFile = File(...)):
-    path = f"{DATA_DIR}/{file.filename}"
-    with open(path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    docs = load_and_split_docs(path)
+    file_path = f"{DATA_DIR}/{file.filename}"
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    docs = load_and_split_docs(file_path)
     create_faiss_index(docs, INDEX_DIR)
-    return {"message": "Indexed"}
+
+    return {"message": "Document uploaded and indexed successfully"}
 
 @app.post("/ask")
-async def ask(question: str):
-    chain = get_rag_chain(INDEX_DIR)
-    return {"answer": chain.run(question)}
+async def ask_question(question: str):
+    qa_chain = get_rag_chain(INDEX_DIR)
+    answer = qa_chain.run(question)
+    return {"answer": answer}
